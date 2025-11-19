@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard de Reservas - PoC Vanguardia</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+        }
+        h1 { color: #9c27b0; } /* Color distintivo UBA */
+
+        /* ESTILOS PARA EL FORMULARIO DE LOGIN */
+        .login-container {
+            margin-bottom: 40px;
+            padding: 20px;
+            border: 1px solid #c9c9c9;
+            border-radius: 8px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            width: 300px;
+            text-align: center;
+        }
+        .login-container input {
+            display: block;
+            width: calc(100% - 20px);
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .login-container button {
+            background-color: #9c27b0;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            width: 100%;
+        }
+        /* FIN ESTILOS LOGIN */
+
+        .container {
+            width: 80%;
+            max-width: 1000px;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+        .section-title { margin-top: 30px; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
+        .api-link {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .api-link.prediccion { background-color: #f44336; }
+        .api-link:hover { opacity: 0.8; }
+    </style>
+    <script>
+        // Función para obtener parámetros de la URL
+        function getParameterByName(name, url = window.location.href) {
+            name = name.replace(/[\[\]]/g, '\\$&');
+            var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+                results = regex.exec(url);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+
+        // Comprueba si el parámetro 'error' está presente en la URL
+        window.onload = function() {
+            if (getParameterByName('error')) {
+                // Muestra la alerta
+                alert("❌ ERROR DE LOGIN: Usuario o contraseña incorrectos. Intente de nuevo.");
+
+                // Opcional: Limpiar la URL para que el mensaje no reaparezca
+                window.history.pushState({}, document.title, window.location.pathname);
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div class="login-container">
+    <h2>🔑 Acceso (Roles)</h2>
+    <form method="POST" action="/login">
+        <input type="text" name="username" placeholder="Email (ana.perez@organizacion.com)" required>
+        <input type="password" name="password" placeholder="Contraseña (admin)" required>
+        <button type="submit">INICIAR SESIÓN</button>
+    </form>
+</div>
+<h1>Plataforma de Gestión de Reservas - MVP</h1>
+<p>Demo de Servicios RESTful (Integración Java, H2 y Python)</p>
+
+<div class="container">
+    <h2>📊 Módulo de Predicción y Analítica</h2>
+    <p>Demuestra la integración de la API de Java con el microservicio de Python (FastAPI) en el puerto 5000.</p>
+    <a href="/api/reservas/prediccion" class="api-link prediccion">
+        VER PREDICCIÓN DE DEMANDA (LLAMADA A PYTHON)
+    </a>
+
+    <h2 class="section-title">🔑 Gestión de Entidades (APIs Operativas)</h2>
+    <p>Las siguientes APIs están protegidas y gestionan la persistencia de datos (H2).</p>
+
+    <h3>Recursos y Reservas</h3>
+    <a href="/api/salas" class="api-link">Listar Salas (GET)</a>
+    <a href="/api/reservas" class="api-link">Listar Reservas (GET)</a>
+    <p class="section-title"></p>
+
+    <h3>Usuarios (Requiere Rol ADMIN)</h3>
+    <a href="/api/personas" class="api-link">Listar Personas (GET)</a>
+
+</div>
+
+</body>
+</html>

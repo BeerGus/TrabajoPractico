@@ -1,0 +1,56 @@
+package dev.danvega.h2demo.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.crypto.password.NoOpPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+@EnableMethodSecurity
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+                // H2 console en iframe
+                .headers(h -> h.frameOptions(f -> f.sameOrigin()))
+                // Para simplificar el formulario y H2 en DEV
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        // Páginas públicas
+                        .requestMatchers("/", "/login", "/login.html", "/index.html",
+                                "/css/**", "/js/**", "/images/**").permitAll()
+                        // H2 console pública (solo DEV)
+                        .requestMatchers("/h2-console/**").permitAll()
+                        // Personas solo ADMIN
+                        .requestMatchers("/api/personas/**").hasRole("ADMIN")
+                        // Resto de APIs autenticadas
+                        .requestMatchers("/api/**").authenticated()
+                        // Cualquier otra ruta autenticada
+                        .anyRequest().authenticated()
+                )
+                .formLogin(form -> form
+                        // Página de login (tu HTML ahora se sirve en /login)
+                        .loginPage("/login")             // GET: muestra login.html
+                        .loginProcessingUrl("/login")    // POST: procesa credenciales
+                        .defaultSuccessUrl("/index.html", true) // destino tras login OK
+                        .permitAll()
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/logout")
+                        .logoutSuccessUrl("/login")
+                        .permitAll()
+                );
+
+        return http.build();
+    }
+
+    // Contraseñas en TEXTO PLANO (solo DEV)
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return NoOpPasswordEncoder.getInstance();
+    }
+}

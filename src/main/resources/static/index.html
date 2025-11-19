@@ -1,0 +1,1116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard de Reservas - PoC Vanguardia</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+        }
+        h1 { color: #9c27b0; }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px 40px;
+            margin-top: 20px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            margin-top: 30px;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 5px;
+        }
+        .api-link {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+            cursor: pointer;
+        }
+        .api-link.prediccion { background-color: #f44336; }
+        .api-link:hover { opacity: 0.8; }
+
+        .header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #9c27b0;
+            color: white;
+            padding: 10px 30px;
+            border-radius: 5px;
+        }
+        .logout-btn {
+            background: white;
+            color: #9c27b0;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .logout-btn:hover {
+            background: #f3e5f5;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            font-size: 14px;
+            text-align: left;
+        }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+
+        .volver-btn {
+            margin-top: 25px;
+            background: #9c27b0;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .volver-btn:hover { background: #7b1fa2; }
+
+        .form-inline label {
+            margin-right: 10px;
+        }
+        .form-inline input,
+        .form-inline select {
+            margin-right: 10px;
+            padding: 4px 6px;
+        }
+        #nueva-reserva-msg,
+        #global-reserva-msg {
+            font-size: 13px;
+        }
+        #nueva-reserva-msg.ok,
+        #global-reserva-msg.ok {
+            color: #2e7d32;
+        }
+        #nueva-reserva-msg.error,
+        #global-reserva-msg.error {
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div id="user-info">Cargando usuario...</div>
+    <form method="POST" action="/logout">
+        <button class="logout-btn">Cerrar sesión</button>
+    </form>
+</div>
+
+<h1>Plataforma de Gestión de Reservas - MVP</h1>
+<p>Demo de Servicios RESTful (Integración Java, H2 y Python)</p>
+
+<div class="container" id="main-container">
+
+    <!-- BLOQUE DE PREDICCIÓN / ANALYTICS -->
+    <div id="prediccion-section">
+        <h2>📊 Módulo de Predicción y Analítica</h2>
+        <p>Demuestra la integración de la API de Java con el microservicio de Python (FastAPI) en el puerto 5000.</p>
+        <a href="/reservas/verprediccion" class="api-link prediccion">
+            VER PREDICCIÓN DE DEMANDA (LLAMADA A PYTHON)
+        </a>
+    </div>
+
+    <h2 class="section-title">🔑 Gestión de Entidades (APIs Operativas)</h2>
+    <p>Las siguientes APIs están protegidas y gestionan la persistencia de datos (H2).</p>
+
+    <h3>Recursos y Reservas</h3>
+    <button class="api-link" onclick="verSalas()">Listar Salas (GET)</button>
+    <button class="api-link" onclick="listarReservasActivas()">Listar Reservas (GET)</button>
+
+    <h3 class="section-title">👥 Administración</h3>
+    <div id="admin-section">
+        <p>Solo visible para usuarios con rol ADMIN</p>
+        <button class="api-link admin-only" onclick="verAPI('/api/personas', 'Listado de Personas')">
+            Listar Personas (GET)
+        </button>
+        <button class="api-link admin-only" onclick="verAPI('/api/articulos', 'Listado de Artículos')">
+            Listar Artículos (GET)
+        </button>
+    </div>
+</div>
+
+<script>
+    let currentUser = null;
+    let salaSeleccionada = null; // sala para el panel de reservas + nueva reserva
+    let reservaTemplateCache = null; // cache de una reserva válida del backend
+
+    // nombres de campos según /api/reservas (ajustados al modelo Java/H2)
+    const CAMPO_PERSONA = 'idPersona';
+    const CAMPO_SALA    = 'idSala';          // para salas usamos idSala
+    const CAMPO_INICIO  = 'fechaHoraInicio';
+    const CAMPO_FIN     = 'fechaHoraFin';
+
+    // ===========================
+    // HELPERS DE FECHA / ACTIVO
+    // ===========================
+    function obtenerFechaReserva(r) {
+        const val =
+            r[CAMPO_INICIO] ??
+            r.fechaHoraInicio ??
+            r.fecha_hora_inicio ??
+            r.FECHA_HORA_INICIO ??
+            r.inicio;
+
+        if (!val) return null;
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+    }
+
+    function esReservaActiva(r) {
+        const estadoRaw =
+            r.estadoSala ??
+            r.estado_sala ??
+            r.ESTADO_SALA ??
+            r.estado;
+
+        const estado = (estadoRaw || '').toString().trim().toUpperCase();
+        const esActiva = estado === 'ACTIVA';
+
+        const fecha = obtenerFechaReserva(r);
+        if (!fecha) return false;
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        return esActiva && fecha >= hoy;
+    }
+
+    // ===========================
+    // USUARIO + ROLES
+    // ===========================
+    async function cargarUsuario() {
+        try {
+            const response = await fetch('/api/me');
+            if (!response.ok) {
+                throw new Error('No autenticado');
+            }
+
+            const data = await response.json();
+            console.log('Respuesta /api/me:', data);
+
+            const nombre = (data.nombre && data.nombre.trim().length > 0)
+                ? data.nombre
+                : (data.name || data.username || data.email || 'Usuario');
+
+            let rol = data.rol || data.role || data.tipo || null;
+            if (!rol && Array.isArray(data.authorities) && data.authorities.length > 0) {
+                const auth0 = data.authorities[0];
+                rol = typeof auth0 === 'string' ? auth0 : (auth0.authority || null);
+            }
+            if (rol && typeof rol === 'string' && rol.startsWith('ROLE_')) {
+                rol = rol.substring(5);
+            }
+            if (!rol) rol = 'USER';
+
+            const idPersona =
+                data.idPersona ??
+                data.idpersona ??
+                data.personaId ??
+                (data.persona && (data.persona.id ?? data.persona.idPersona ?? data.persona.id_persona)) ??
+                data.id ??
+                data.userId ??
+                data.user_id ??
+                data.idUsuario ??
+                data.id_usuario ??
+                null;
+
+            currentUser = {
+                ...data,
+                id: idPersona,
+                email: data.email || data.username || null,
+                nombre,
+                rol
+            };
+
+            const userInfo = document.getElementById('user-info');
+            if (userInfo) {
+                userInfo.textContent = `Usuario: ${nombre} (${rol})`;
+            }
+
+            const esAdmin = rol === 'ADMIN';
+
+            const prediccionSection = document.getElementById('prediccion-section');
+            if (prediccionSection) {
+                prediccionSection.style.display = esAdmin ? 'block' : 'none';
+            }
+
+            const adminSection = document.getElementById('admin-section');
+            if (adminSection) {
+                adminSection.style.display = esAdmin ? 'block' : 'none';
+            }
+
+            document.querySelectorAll('.admin-only').forEach(el => {
+                el.style.display = esAdmin ? 'inline-block' : 'none';
+            });
+
+        } catch (error) {
+            console.error('Error al obtener el usuario:', error);
+            currentUser = null;
+
+            const userInfo = document.getElementById('user-info');
+            if (userInfo) {
+                userInfo.textContent = 'No autenticado';
+            }
+
+            const prediccionSection = document.getElementById('prediccion-section');
+            if (prediccionSection) {
+                prediccionSection.style.display = 'none';
+            }
+            const adminSection = document.getElementById('admin-section');
+            if (adminSection) {
+                adminSection.style.display = 'none';
+            }
+            document.querySelectorAll('.admin-only').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+    }
+
+    function volverInicio() {
+        window.location.href = '/index.html';
+    }
+
+    // ===========================
+    // OBTENER idPersona (por /api/me o por /api/personas)
+    // ===========================
+    async function obtenerPersonaId() {
+        if (currentUser && currentUser.id != null) {
+            return currentUser.id;
+        }
+
+        if (!currentUser || !currentUser.email) {
+            console.warn('No tengo email en /api/me para buscar persona');
+            return null;
+        }
+
+        try {
+            const res = await fetch('/api/personas');
+            if (!res.ok) {
+                console.warn('No se pudo consultar /api/personas para resolver idPersona (quizás el rol USER no tenga permiso)');
+                return null;
+            }
+            const personas = await res.json();
+            if (!Array.isArray(personas)) return null;
+
+            const persona = personas.find(p => p.email === currentUser.email);
+            if (persona) {
+                currentUser.id = persona.id;
+                return persona.id;
+            }
+            return null;
+        } catch (e) {
+            console.error('Error buscando persona por email:', e);
+            return null;
+        }
+    }
+
+    // ===========================
+    // TEMPLATE DE RESERVA
+    // ===========================
+    async function obtenerReservaTemplate() {
+        if (reservaTemplateCache) {
+            return reservaTemplateCache;
+        }
+        try {
+            const res = await fetch('/api/reservas');
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (!Array.isArray(data) || data.length === 0) return null;
+            reservaTemplateCache = data[0];
+            console.log('Reserva template detectada:', reservaTemplateCache);
+            return reservaTemplateCache;
+        } catch (e) {
+            console.error('Error obteniendo reserva template:', e);
+            return null;
+        }
+    }
+
+    function construirReservaDesdeTemplate(template, personaId, salaId, articuloId, inicioStr, finStr) {
+        if (!template) {
+            return {
+                [CAMPO_PERSONA]: personaId,
+                [CAMPO_SALA]: salaId,
+                idArticulo: articuloId,
+                [CAMPO_INICIO]: inicioStr,
+                [CAMPO_FIN]: finStr,
+                estadoSala: 'ACTIVA'
+            };
+        }
+
+        const nueva = {};
+        for (const key of Object.keys(template)) {
+            if (key === 'id') continue; // id lo genera el backend
+
+            const lower = key.toLowerCase();
+
+            if (lower.includes('persona')) {
+                nueva[key] = personaId;
+            } else if (lower.includes('articulo')) {
+                nueva[key] = articuloId;
+            } else if (lower.includes('sala')) {
+                nueva[key] = salaId;
+            } else if (lower.includes('inicio')) {
+                nueva[key] = inicioStr;
+            } else if (lower.includes('fin')) {
+                nueva[key] = finStr;
+            } else if (lower.includes('estado')) {
+                nueva[key] = 'ACTIVA';
+            } else {
+                nueva[key] = template[key];
+            }
+        }
+
+        return nueva;
+    }
+
+    // ===========================
+    // SELECTOR DE HORAS
+    // ===========================
+    function inicializarSelectorHora(idSelect) {
+        const select = document.getElementById(idSelect);
+        if (!select) return;
+
+        select.innerHTML = '';
+        for (let h = 8; h <= 20; h++) {
+            const hh = h.toString().padStart(2, '0');
+            const option = document.createElement('option');
+            option.value = hh;
+            option.textContent = `${hh}:00`;
+            select.appendChild(option);
+        }
+    }
+
+    // ===========================
+    // CARGAR ARTÍCULOS EN UN SELECT
+    // ===========================
+    async function cargarArticulosEnSelect(selectId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+
+        try {
+            const res = await fetch('/api/articulos');
+            if (!res.ok) {
+                console.error('No se pudieron obtener artículos');
+                select.innerHTML = '<option value="">(error al cargar)</option>';
+                return;
+            }
+
+            const articulos = await res.json();
+            if (!Array.isArray(articulos) || articulos.length === 0) {
+                select.innerHTML = '<option value="">(no hay artículos)</option>';
+                return;
+            }
+
+            select.innerHTML = '<option value="">Seleccione un artículo...</option>';
+            articulos.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.id;
+                opt.textContent = `${a.id} - ${a.nombre}`;
+                select.appendChild(opt);
+            });
+        } catch (e) {
+            console.error('Error cargando artículos', e);
+            select.innerHTML = '<option value="">(error al cargar)</option>';
+        }
+    }
+
+    // ===========================
+    // LISTAR SALAS + PANEL
+    // ===========================
+    async function verSalas() {
+        try {
+            const resSalas = await fetch('/api/salas');
+            if (!resSalas.ok) {
+                alert('Error al obtener salas.');
+                return;
+            }
+            const salas = await resSalas.json();
+            if (!Array.isArray(salas) || salas.length === 0) {
+                alert('No se encontraron salas.');
+                return;
+            }
+
+            let reservas = [];
+            try {
+                const resReservas = await fetch('/api/reservas');
+                if (resReservas.ok) {
+                    reservas = await resReservas.json();
+                }
+            } catch (e) {
+                console.error('No se pudieron obtener reservas para el conteo:', e);
+            }
+
+            let html = `
+            <div class="header">
+                <div id="user-info">Cargando usuario...</div>
+                <form method="POST" action="/logout">
+                    <button class="logout-btn">Cerrar sesión</button>
+                </form>
+            </div>
+
+            <h1>Plataforma de Gestión de Reservas - MVP</h1>
+            <p>Demo de Servicios RESTful (Integración Java, H2 y Python)</p>
+
+            <div class="container">
+                <h2>📋 Listado de Salas</h2>
+                <p>Incluye cantidad de reservas activas por sala.</p>
+
+                <table id="tabla-salas">
+                    <thead>
+                        <tr>
+                            <th>id</th>
+                            <th>nombre</th>
+                            <th>capacidad</th>
+                            <th>reservas activas</th>
+                            <th>acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+            for (const sala of salas) {
+                const reservasSala = reservas.filter(r => {
+                    const salaIdReserva =
+                        r[CAMPO_SALA] ??
+                        r.idSala ??
+                        r.id_sala ??
+                        r.salaId ??
+                        r.idArticulo; // último fallback
+                    return salaIdReserva === sala.id;
+                });
+
+                const cantidadActivas = reservasSala.filter(esReservaActiva).length;
+
+                html += `
+                <tr data-sala-id="${sala.id}">
+                    <td>${sala.id}</td>
+                    <td>${sala.nombre ?? ''}</td>
+                    <td>${sala.capacidad ?? ''}</td>
+                    <td class="col-reservas-activas">${cantidadActivas}</td>
+                    <td>
+                        <button class="api-link" onclick="verReservasSala(${sala.id})">
+                            Ver reservas
+                        </button>
+                    </td>
+                </tr>
+            `;
+            }
+
+            html += `
+                    </tbody>
+                </table>
+
+                <!-- Panel de reservas de la sala seleccionada -->
+                <div id="reservas-sala-panel" style="margin-top:25px; display:none;">
+                    <h3 id="reservas-sala-titulo">Reservas activas de la sala</h3>
+
+                    <div id="nueva-reserva-form" class="form-inline" style="margin-bottom:15px;">
+                        <h4>Nueva reserva para esta sala</h4>
+                        <label>
+                            Fecha:
+                            <input type="date" id="nueva-reserva-fecha">
+                        </label>
+                        <label>
+                            Hora de inicio:
+                            <select id="nueva-reserva-hora"></select>
+                        </label>
+                        <label>
+                            Artículo:
+                            <select id="nueva-reserva-articulo"></select>
+                        </label>
+                        <button class="api-link" onclick="crearReservaActual()">Crear reserva</button>
+                        <span id="nueva-reserva-msg"></span>
+                    </div>
+
+                    <h4>Reservas activas de la sala</h4>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>id</th>
+                                <th>idPersona</th>
+                                <th>idSala</th>
+                                <th>inicio</th>
+                                <th>fin</th>
+                                <th>estado</th>
+                                <th>acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reservas-sala-body"></tbody>
+                    </table>
+                </div>
+
+                <button class="volver-btn" onclick="volverInicio()">Volver al Inicio</button>
+            </div>
+        `;
+
+            document.body.innerHTML = html;
+            cargarUsuario();
+            inicializarSelectorHora('nueva-reserva-hora');
+            cargarArticulosEnSelect('nueva-reserva-articulo');
+
+        } catch (err) {
+            console.error('Error cargando salas', err);
+            alert('Error cargando salas.');
+        }
+    }
+
+    // ===========================
+    // RESERVAS POR SALA (ACTIVAS) EN PANEL
+    // ===========================
+    async function verReservasSala(idSala) {
+        try {
+            salaSeleccionada = idSala;
+
+            // 🔑 Aseguramos que currentUser.id (idPersona) esté resuelto
+            await obtenerPersonaId();
+
+            const res = await fetch('/api/reservas');
+            if (!res.ok) {
+                alert('Error al obtener reservas.');
+                return;
+            }
+
+            const reservas = await res.json();
+            if (!Array.isArray(reservas) || reservas.length === 0) {
+                alert('No se encontraron reservas en el sistema.');
+                return;
+            }
+
+            const reservasSala = reservas.filter(r => {
+                const salaIdReserva =
+                    r[CAMPO_SALA] ??
+                    r.idSala ??
+                    r.id_sala ??
+                    r.salaId ??
+                    r.idArticulo;
+                return salaIdReserva === idSala;
+            });
+
+            const reservasActivas = reservasSala.filter(esReservaActiva);
+
+            const panel = document.getElementById('reservas-sala-panel');
+            const titulo = document.getElementById('reservas-sala-titulo');
+            const tbody = document.getElementById('reservas-sala-body');
+
+            if (!panel || !titulo || !tbody) {
+                console.error('No se encontró el panel de reservas en el DOM.');
+                return;
+            }
+
+            if (reservasActivas.length === 0) {
+                titulo.textContent = `Reservas activas de la sala ${idSala} (no hay activas)`;
+            } else {
+                titulo.textContent = `Reservas activas de la sala ${idSala}`;
+            }
+
+            // actualizar contador de la tabla de arriba
+            const filaSala = document.querySelector(`#tabla-salas tbody tr[data-sala-id="${idSala}"]`);
+            if (filaSala) {
+                const colCount = filaSala.querySelector('.col-reservas-activas');
+                if (colCount) {
+                    colCount.textContent = reservasActivas.length;
+                }
+            }
+
+            tbody.innerHTML = '';
+
+            reservasActivas.forEach(r => {
+                const salaIdReserva =
+                    r[CAMPO_SALA] ?? r.idSala ?? r.id_sala ?? r.salaId ?? r.idArticulo ?? '';
+
+                const inicioDate = obtenerFechaReserva(r);
+                const inicio = inicioDate ? inicioDate.toISOString() : (r[CAMPO_INICIO] || '');
+
+                const finRaw =
+                    r[CAMPO_FIN] ??
+                    r.fechaHoraFin ??
+                    r.fecha_hora_fin ??
+                    r.FECHA_HORA_FIN ??
+                    r.fin;
+                const fin = finRaw || '';
+
+                const estadoStr =
+                    r.estadoSala ??
+                    r.estado_sala ??
+                    r.ESTADO_SALA ??
+                    r.estado ??
+                    '';
+
+                const idPersonaReserva = r[CAMPO_PERSONA] ?? r.idPersona ?? r.ID_PERSONA;
+
+                // ✅ Lógica correcta: solo dueño o admin
+                let puedeCancelar = false;
+                if (currentUser) {
+                    const esAdmin = currentUser.rol === 'ADMIN';
+                    let esDueno = false;
+
+                    if (currentUser.id != null && idPersonaReserva != null) {
+                        esDueno = Number(currentUser.id) === Number(idPersonaReserva);
+                    }
+
+                    puedeCancelar = esAdmin || esDueno;
+                }
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                <td>${r.id}</td>
+                <td>${idPersonaReserva ?? ''}</td>
+                <td>${salaIdReserva}</td>
+                <td>${inicio}</td>
+                <td>${fin}</td>
+                <td>${estadoStr}</td>
+                <td>
+                    ${
+                    puedeCancelar
+                        ? `<button class="api-link" onclick="cancelarReserva(${r.id}, ${idSala})">Cancelar</button>`
+                        : ''
+                }
+                </td>
+            `;
+                tbody.appendChild(tr);
+            });
+
+            panel.style.display = 'block';
+
+        } catch (err) {
+            console.error('Error al listar reservas por sala:', err);
+            alert('Error al obtener las reservas.');
+        }
+    }
+
+    // ===========================
+    // CREAR RESERVA (DESDE PANEL DE SALA)
+    // ===========================
+    async function crearReservaActual() {
+        const msg = document.getElementById('nueva-reserva-msg');
+        if (msg) {
+            msg.textContent = '';
+            msg.className = '';
+        }
+
+        if (!salaSeleccionada) {
+            if (msg) {
+                msg.textContent = 'Primero seleccioná una sala con "Ver reservas".';
+                msg.className = 'error';
+            }
+            return;
+        }
+
+        const personaId = await obtenerPersonaId();
+        if (personaId == null) {
+            console.warn('No se pudo resolver idPersona; se envía null y se delega al backend.');
+        }
+
+        const inputFecha = document.getElementById('nueva-reserva-fecha');
+        const selectHora = document.getElementById('nueva-reserva-hora');
+        const selectArticulo = document.getElementById('nueva-reserva-articulo');
+
+        if (!inputFecha || !selectHora || !selectArticulo) return;
+
+        const fecha = inputFecha.value; // yyyy-MM-dd
+        const hora = selectHora.value;  // HH
+        const articuloId = selectArticulo.value ? parseInt(selectArticulo.value, 10) : null;
+
+        if (!fecha || !hora || !articuloId) {
+            if (msg) {
+                msg.textContent = 'Completá fecha, hora y artículo.';
+                msg.className = 'error';
+            }
+            return;
+        }
+
+        const inicioStr = `${fecha}T${hora}:00:00`;
+        const finHour = (parseInt(hora, 10) + 1).toString().padStart(2, '0');
+        const finStr = `${fecha}T${finHour}:00:00`;
+
+        const template = await obtenerReservaTemplate();
+        const nuevaReserva = construirReservaDesdeTemplate(
+            template,
+            personaId,
+            salaSeleccionada,
+            articuloId,
+            inicioStr,
+            finStr
+        );
+
+        console.log('Reserva que se va a enviar al backend (sala):', nuevaReserva);
+
+        try {
+            const res = await fetch('/api/reservas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(nuevaReserva)
+            });
+
+            const txt = await res.text();
+
+            if (!res.ok) {
+                if (msg) {
+                    msg.textContent = 'Error al crear la reserva: ' + txt;
+                    msg.className = 'error';
+                }
+                console.error('Respuesta backend al crear reserva:', txt);
+                return;
+            }
+
+            if (msg) {
+                msg.textContent = 'Reserva creada correctamente.';
+                msg.className = 'ok';
+            }
+
+            // refresco inmediato (tabla de abajo + contador de arriba)
+            setTimeout(() => verReservasSala(salaSeleccionada), 150);
+
+        } catch (err) {
+            console.error('Error al crear reserva', err);
+            if (msg) {
+                msg.textContent = 'Error al crear la reserva.';
+                msg.className = 'error';
+            }
+        }
+    }
+
+    // ===========================
+    // CREAR RESERVA (DESDE LISTADO GLOBAL)
+    // ===========================
+    async function crearReservaDesdeListado() {
+        const msg = document.getElementById('global-reserva-msg');
+        if (msg) {
+            msg.textContent = '';
+            msg.className = '';
+        }
+
+        const selectSala  = document.getElementById('global-reserva-sala');
+        const inputFecha  = document.getElementById('global-reserva-fecha');
+        const selectHora  = document.getElementById('global-reserva-hora');
+        const selectArticulo = document.getElementById('global-reserva-articulo');
+
+        if (!selectSala || !inputFecha || !selectHora || !selectArticulo) return;
+
+        const salaId = parseInt(selectSala.value, 10);
+        const fecha  = inputFecha.value;
+        const hora   = selectHora.value;
+        const articuloId = selectArticulo.value ? parseInt(selectArticulo.value, 10) : null;
+
+        if (!salaId || !fecha || !hora || !articuloId) {
+            if (msg) {
+                msg.textContent = 'Completá sala, fecha, hora y artículo.';
+                msg.className = 'error';
+            }
+            return;
+        }
+
+        const personaId = await obtenerPersonaId();
+        if (personaId == null) {
+            console.warn('No se pudo resolver idPersona; se envía null y se delega al backend.');
+        }
+
+        const inicioStr = `${fecha}T${hora}:00:00`;
+        const finHour = (parseInt(hora, 10) + 1).toString().padStart(2, '0');
+        const finStr = `${fecha}T${finHour}:00:00`;
+
+        const template = await obtenerReservaTemplate();
+        const nuevaReserva = construirReservaDesdeTemplate(
+            template,
+            personaId,
+            salaId,
+            articuloId,
+            inicioStr,
+            finStr
+        );
+
+        console.log('Reserva que se va a enviar al backend (global):', nuevaReserva);
+
+        try {
+            const res = await fetch('/api/reservas', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(nuevaReserva)
+            });
+
+            const txt = await res.text();
+
+            if (!res.ok) {
+                if (msg) {
+                    msg.textContent = 'Error al crear la reserva: ' + txt;
+                    msg.className = 'error';
+                }
+                console.error('Respuesta backend al crear reserva:', txt);
+                return;
+            }
+
+            if (msg) {
+                msg.textContent = 'Reserva creada correctamente.';
+                msg.className = 'ok';
+            }
+
+            // refrescar la tabla global
+            setTimeout(listarReservasActivas, 150);
+
+        } catch (err) {
+            console.error('Error al crear reserva (global)', err);
+            if (msg) {
+                msg.textContent = 'Error al crear la reserva.';
+                msg.className = 'error';
+            }
+        }
+    }
+
+    // ===========================
+    // CANCELAR RESERVA
+    // ===========================
+    async function cancelarReserva(idReserva, idSala) {
+        if (!confirm(`¿Seguro que querés cancelar la reserva ${idReserva}?`)) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/reservas/${idReserva}/cancelar`, {
+                method: 'PUT'
+            });
+
+            if (!res.ok) {
+                const txt = await res.text();
+                alert('No se pudo cancelar la reserva: ' + txt);
+                return;
+            }
+
+            await verReservasSala(idSala);
+
+        } catch (err) {
+            console.error('Error cancelando reserva', err);
+            alert('Error cancelando la reserva.');
+        }
+    }
+
+    // ===========================
+    // LISTAR RESERVAS (GET) – SOLO ACTIVAS + FORMULARIO
+    // ===========================
+    async function listarReservasActivas() {
+        try {
+            const res = await fetch('/api/reservas');
+            if (!res.ok) {
+                alert('Error al obtener reservas.');
+                return;
+            }
+
+            let data = await res.json();
+            if (!Array.isArray(data)) {
+                alert('Respuesta inesperada de /api/reservas');
+                return;
+            }
+
+            data = data.filter(esReservaActiva);
+
+            // obtenemos salas para el select del formulario
+            let salas = [];
+            try {
+                const resSalas = await fetch('/api/salas');
+                if (resSalas.ok) {
+                    salas = await resSalas.json();
+                }
+            } catch (e) {
+                console.error('No se pudieron obtener salas para el formulario global.', e);
+            }
+
+            const headers = data.length > 0 ? Object.keys(data[0]) : [];
+
+            let html = `
+            <div class="header">
+                <div id="user-info">Cargando usuario...</div>
+                <form method="POST" action="/logout">
+                    <button class="logout-btn">Cerrar sesión</button>
+                </form>
+            </div>
+
+            <h1>Plataforma de Gestión de Reservas - MVP</h1>
+            <p>Demo de Servicios RESTful (Integración Java, H2 y Python)</p>
+
+            <div class="container">
+                <h2>📋 Listado de Reservas activas</h2>
+                <p>Se muestran solo las reservas con estado ACTIVA y fecha desde hoy.</p>
+
+                <div id="global-nueva-reserva-form" class="form-inline" style="margin-bottom:15px;">
+                    <h3>Nueva reserva</h3>
+                    <label>
+                        Sala:
+                        <select id="global-reserva-sala">
+                            ${
+                salas.map(s => `<option value="${s.id}">${s.id} - ${s.nombre}</option>`).join('')
+            }
+                        </select>
+                    </label>
+                    <label>
+                        Fecha:
+                        <input type="date" id="global-reserva-fecha">
+                    </label>
+                    <label>
+                        Hora de inicio:
+                        <select id="global-reserva-hora"></select>
+                    </label>
+                    <label>
+                        Artículo:
+                        <select id="global-reserva-articulo"></select>
+                    </label>
+                    <button class="api-link" onclick="crearReservaDesdeListado()">Crear reserva</button>
+                    <span id="global-reserva-msg"></span>
+                </div>
+        `;
+
+            if (headers.length > 0) {
+                html += `
+                <table>
+                    <thead>
+                        <tr>
+                            ${headers.map(h => `<th>${h}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+                for (const row of data) {
+                    html += `
+                    <tr>
+                        ${headers.map(h => `<td>${row[h] ?? ''}</td>`).join('')}
+                    </tr>
+                `;
+                }
+
+                html += `
+                    </tbody>
+                </table>
+            `;
+            } else {
+                html += `<p>No hay reservas activas para mostrar.</p>`;
+            }
+
+            html += `
+                <button class="volver-btn" onclick="volverInicio()">Volver al Inicio</button>
+            </div>
+        `;
+
+            document.body.innerHTML = html;
+            cargarUsuario();
+            inicializarSelectorHora('global-reserva-hora');
+            cargarArticulosEnSelect('global-reserva-articulo');
+
+        } catch (err) {
+            console.error('Error listando reservas activas:', err);
+            alert('Error al obtener las reservas activas.');
+        }
+    }
+
+    // ===========================
+    // VISTA GENÉRICA PARA OTROS ENDPOINTS
+    // ===========================
+    async function verAPI(path, title) {
+        try {
+            const res = await fetch(path);
+            if (!res.ok) {
+                alert('Error al obtener datos de ' + path);
+                return;
+            }
+
+            const data = await res.json();
+            if (!Array.isArray(data) || data.length === 0) {
+                alert('La respuesta está vacía.');
+            }
+
+            const headers = data.length > 0 ? Object.keys(data[0]) : [];
+
+            let html = `
+            <div class="header">
+                <div id="user-info">Cargando usuario...</div>
+                <form method="POST" action="/logout">
+                    <button class="logout-btn">Cerrar sesión</button>
+                </form>
+            </div>
+
+            <h1>Plataforma de Gestión de Reservas - MVP</h1>
+            <p>Demo de Servicios RESTful (Integración Java, H2 y Python)</p>
+
+            <div class="container">
+                <h2>${title}</h2>
+                <p>Endpoint: ${path}</p>
+        `;
+
+            if (headers.length > 0) {
+                html += `
+                <table>
+                    <thead>
+                        <tr>
+                            ${headers.map(h => `<th>${h}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+                for (const row of data) {
+                    html += `
+                    <tr>
+                        ${headers.map(h => `<td>${row[h] ?? ''}</td>`).join('')}
+                    </tr>
+                `;
+                }
+
+                html += `
+                    </tbody>
+                </table>
+            `;
+            } else {
+                html += `<p>No hay datos para mostrar.</p>`;
+            }
+
+            html += `
+                <button class="volver-btn" onclick="volverInicio()">Volver al Inicio</button>
+            </div>
+        `;
+
+            document.body.innerHTML = html;
+            cargarUsuario();
+
+        } catch (err) {
+            console.error('Error en verAPI:', err);
+            alert('Error al obtener datos genéricos.');
+        }
+    }
+
+    // INIT
+    document.addEventListener('DOMContentLoaded', () => {
+        cargarUsuario();
+    });
+
+</script>
+
+</body>
+</html>

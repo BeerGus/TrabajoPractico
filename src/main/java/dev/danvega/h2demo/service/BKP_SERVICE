@@ -1,0 +1,163 @@
+/*package dev.danvega.h2demo.service;
+
+import dev.danvega.h2demo.model.Persona;
+import dev.danvega.h2demo.repository.PersonaRepository;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final PersonaRepository personaRepository;
+
+    // Inyección de dependencias (para acceder a la DB de personas)
+    public CustomUserDetailsService(PersonaRepository personaRepository) {
+        this.personaRepository = personaRepository;
+    }
+
+    // Este es el método que Spring Security llama con el email/username que el usuario ingresa
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+
+        // 1. Busca la persona por email usando el método que definimos en PersonaRepository
+        Persona persona = personaRepository.findByEmail(email)
+                // 2. Si no la encuentra, lanza la excepción (¡Sintaxis corregida!)
+                .orElseThrow(() -> new UsernameNotFoundException("Persona no encontrada con email: " + email));
+
+        // 3. Construye el objeto UserDetails con los datos de la DB
+        // Spring Security requiere que los roles comiencen con "ROLE_" (ej: ROLE_ADMIN, ROLE_USER)
+        return new User(
+                persona.getEmail(),
+                persona.getPassword(), // Contraseña hasheada (Hash de BCrypt)
+                Collections.singletonList(() -> "ROLE_" + persona.getRol()) // Rol
+        );
+    }
+}
+*/
+
+/*
+
+package dev.danvega.h2demo.service;
+
+import dev.danvega.h2demo.model.Persona;
+import dev.danvega.h2demo.repository.PersonaRepository;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+import java.util.Collections;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final PersonaRepository personaRepository;
+
+    public CustomUserDetailsService(PersonaRepository personaRepository) {
+        this.personaRepository = personaRepository;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+
+        // 1. Busca la Persona en la base de datos (H2) por el email
+        Persona persona = personaRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Persona no encontrada con email: " + email));
+
+        // 2. Devuelve un objeto de Spring Security (User) para la autenticación
+        return new User(
+                persona.getEmail(),
+                persona.getPassword(), // Spring Security verifica este hash con el password ingresado
+                Collections.singletonList(() -> "ROLE_" + persona.getRol()) // Asigna el Rol (ADMIN o USER)
+        );
+    }
+}
+
+ */
+
+package dev.danvega.h2demo.service;
+
+import dev.danvega.h2demo.model.Persona;
+import dev.danvega.h2demo.repository.PersonaRepository;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final PersonaRepository personaRepository;
+
+    // Inyección del repositorio de Personas
+    public CustomUserDetailsService(PersonaRepository personaRepository) {
+        this.personaRepository = personaRepository;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+
+        // 1. Buscar la persona por email en la base de datos
+        Persona persona = personaRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con email: " + email));
+
+        // 2. Construir el objeto UserDetails
+        // ¡¡¡CORRECCIÓN CLAVE!!!
+        // Cuando usamos NoOpPasswordEncoder, la contraseña de la DB (texto plano)
+        // DEBE ser prefijada con "{noop}" para que Spring Security la acepte.
+        return new User(
+                persona.getEmail(),
+                "{noop}" + persona.getPassword(),
+                Collections.singletonList(() -> "ROLE_" + persona.getRol())
+        );
+    }
+}
+
+package dev.danvega.h2demo.service;
+
+import dev.danvega.h2demo.model.Persona;
+import dev.danvega.h2demo.repository.PersonaRepository;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+
+    private final PersonaRepository personaRepository;
+
+    // Inyección del repositorio de Personas
+    public CustomUserDetailsService(PersonaRepository personaRepository) {
+        this.personaRepository = personaRepository;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+
+        // 1. Buscar la persona por email en la base de datos
+        Persona persona = personaRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con email: " + email));
+
+        // 2. Construir el objeto UserDetails
+        // ¡¡¡CORRECCIÓN CLAVE!!!
+        // Al no usar PasswordEncoder en SecurityConfig, este prefijo "{noop}"
+        // le dice a Spring Security que la contraseña está en texto plano.
+        return new User(
+                persona.getEmail(),
+                "{noop}" + persona.getPassword(), // <-- ¡Esto hará que la contraseña 12345 funcione!
+                Collections.singletonList(() -> "ROLE_" + persona.getRol())
+        );
+    }
+}

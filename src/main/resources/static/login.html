@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Ingreso - PoC Vanguardia</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .login-container {
+            padding: 30px;
+            border: 1px solid #c9c9c9;
+            border-radius: 10px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 320px;
+            text-align: center;
+        }
+
+        .login-container h2 {
+            color: #9c27b0;
+            margin-bottom: 20px;
+        }
+
+        .login-container input {
+            display: block;
+            width: calc(100% - 20px);
+            margin: 10px auto;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .login-container button {
+            background-color: #9c27b0;
+            color: white;
+            border: none;
+            padding: 10px;
+            cursor: pointer;
+            width: 100%;
+            border-radius: 4px;
+        }
+
+        .login-container button:hover {
+            opacity: 0.9;
+        }
+
+        .error-msg {
+            color: red;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        footer {
+            margin-top: 40px;
+            font-size: 0.8em;
+            color: #666;
+        }
+         .success-message {
+             background-color: #e0f7e9;
+             border: 1px solid #2e7d32;
+             color: #2e7d32;
+             padding: 10px;
+             border-radius: 4px;
+             font-size: 14px;
+             margin-bottom: 10px;
+             text-align: center;
+         }
+    </style>
+</head>
+<script>
+    // Función para leer parámetros de la URL
+    function getQueryParam(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const registrado = getQueryParam('registered');
+
+        if (registrado === 'true') {
+            const box = document.getElementById('registro-ok');
+            if (box) {
+                box.style.display = 'block';
+            }
+
+            // Limpia la query string (?registered=true) de la URL
+            if (window.history && window.history.replaceState) {
+                const cleanUrl = window.location.pathname;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+        }
+    });
+</script>
+<body>
+
+<div class="login-container">
+    <h2>🔐 Acceso a la Plataforma</h2>
+
+    <!-- Mensaje de error de Spring Security -->
+    <div id="error" class="error-msg" style="display:none;">
+        Credenciales inválidas. Intente nuevamente.
+    </div>
+    <!-- 🔹 NUEVO: cartel de mensaje de registro exitoso -->
+    <div id="registro-ok" class="success-message" style="display:none;">
+        Usuario registrado exitosamente. Ya podés iniciar sesión.
+    </div>
+    <form method="POST" action="/login">
+        <input type="text" name="username" placeholder="Email" required>
+        <input type="password" name="password" placeholder="Contraseña" required>
+        <button type="submit">INICIAR SESIÓN</button>
+    </form>
+</div>
+<div class="register-link" style="margin-top: 10px; text-align: center; font-size: 13px;">
+    ¿No tenés cuenta?
+    <a href="/register" style="color:#9c27b0; text-decoration:none;">Registrate</a>
+</div>
+
+<footer>
+    <p>© 2025 PoC Vanguardia - Demo Integración Java, H2 y Python</p>
+</footer>
+
+<script>
+    // Detecta si Spring Security redirigió con ?error
+    if (window.location.search.includes('error')) {
+        document.getElementById('error').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>

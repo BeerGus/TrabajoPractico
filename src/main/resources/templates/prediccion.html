@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Predicción de Demanda - Demo Python</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa, #e0e7ff);
+            text-align: center;
+            padding: 50px;
+        }
+
+        h1 {
+            color: #3f51b5;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            display: inline-block;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+            padding: 30px;
+            width: 520px;
+            animation: fadeIn 1s ease-in-out;
+        }
+
+        img {
+            margin-top: 20px;
+            border-radius: 10px;
+            width: 90%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .dato {
+            font-size: 18px;
+            margin: 12px 0;
+        }
+
+        .status {
+            color: green;
+            font-weight: bold;
+        }
+
+        .small-note {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .volver-btn {
+            display: inline-block;
+            margin-top: 25px;
+            padding: 10px 20px;
+            background-color: #3f51b5;
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .volver-btn:hover {
+            background-color: #2e3a8c;
+            transform: scale(1.05);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<h1>🔮 Predicción de Demanda</h1>
+
+<div class="card">
+    <p th:text="${mensaje}"></p>
+
+    <div class="dato">📊 <b>Demanda Histórica:</b> <span th:text="${historica}"></span> horas</div>
+    <div class="dato">⏱️ <b>Predicción:</b> <span th:text="${prediccion}"></span> horas</div>
+    <div class="dato status">✔️ <span th:text="${status}"></span></div>
+
+    <!-- 🔢 Nueva línea: cantidad de reservas -->
+    <div class="dato">🔢 <b>Reservas utilizadas:</b> <span th:text="${cantidadReservas}"></span></div>
+    <p class="small-note">(más reservas = predicción más precisa)</p>
+
+    <img th:src="'data:image/png;base64,' + ${grafico}" alt="Gráfico de Predicción">
+
+    <!-- Botón de volver
+    <a href="/" class="volver-btn">⬅ Volver al Dashboard</a>
+    -->
+    <button onclick="window.history.back()" class="volver-btn">
+        ⬅️ Volver al Dashboard
+    </button>
+
+</div>
+
+</body>
+</html>

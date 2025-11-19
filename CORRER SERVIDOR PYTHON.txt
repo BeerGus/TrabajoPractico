@@ -1,0 +1,6 @@
+instalar la libreria : pip install python3 --version (antes)
+cd IdeaProjects
+cd h2-demo
+.\.venv\Scripts\activate.bat
+cd C:\h2-demo\
+python -m uvicorn python_service.app:app --reload --port 5000

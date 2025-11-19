@@ -1,0 +1,15 @@
+package dev.danvega.h2demo.controller;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller // Usamos @Controller para devolver nombres de plantillas, no JSON
+public class ViewController {
+
+    // Este método mapea la ruta raíz (http://localhost:8080/)
+    // y devuelve el nombre del archivo HTML ('index')
+    @GetMapping("/")
+    public String showDashboard() {
+        return "index"; // Esto busca el archivo 'index.html' en src/main/resources/templates/
+    }
+}

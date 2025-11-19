@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Usuario</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 320px;
+        }
+        h2 {
+            margin-top: 0;
+            text-align: center;
+            color: #9c27b0;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            box-sizing: border-box;
+        }
+        .error {
+            color: #b00020;
+            background: #fdecea;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .success {
+            color: #00695c;
+            background: #e0f2f1;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        button {
+            margin-top: 15px;
+            width: 100%;
+            padding: 10px;
+            border: none;
+            background: #9c27b0;
+            color: white;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #7b1fa2;
+        }
+        .link {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .link a {
+            color: #9c27b0;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Crear cuenta</h2>
+
+    <!-- Mensaje de error -->
+    <div th:if="${error}" class="error" th:text="${error}"></div>
+
+    <form method="post" action="/register">
+        <label>Nombre completo</label>
+        <input type="text" name="nombre" th:value="${nombre}" required>
+
+        <label>Email</label>
+        <input type="email" name="email" th:value="${email}" required>
+
+        <label>Contraseña</label>
+        <input type="password" name="password" required>
+
+        <button type="submit">Registrarme</button>
+    </form>
+
+    <div class="link">
+        <span>¿Ya tenés cuenta?</span>
+        <a href="/login">Iniciar sesión</a>
+    </div>
+</div>
+
+</body>
+</html>
